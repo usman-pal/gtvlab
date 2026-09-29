@@ -20,6 +20,43 @@ With no Stripe / Cal.com / Resend keys the app runs end-to-end in **dev mocks**:
 
 Admin: `/admin` (password = `ADMIN_PASSWORD`).
 
+## Deploying on your own server (pm2)
+
+`ecosystem.config.cjs` defines two pm2 processes:
+
+- **gtl-web** — the site on port **3199** (3000 is taken on the server). To use another port, change `GTL_PORT` in the file or start with `GTL_PORT=3200 pm2 start ecosystem.config.cjs`.
+- **gtl-nurture-cron** — every hour it calls `/api/cron/nurture` on the local site and exits (no crontab needed). It reads `CRON_SECRET` from `.env`.
+
+SQLite on a single server is fine: keep `provider = "sqlite"` and one `gtl-web` instance.
+
+First time:
+
+```bash
+git clone https://github.com/usman-pal/gtvlab.git
+cd gtvlab
+npm ci
+# copy .env and prisma/dev.db onto the server
+# set NEXT_PUBLIC_SITE_URL=https://globaltalentlab.services in .env BEFORE building
+npx prisma db push          # makes sure tables match the schema; keeps existing data
+npm run build
+pm2 start ecosystem.config.cjs
+pm2 save                    # and `pm2 startup` once, if pm2 isn't already set to start on boot
+```
+
+Point nginx (or your proxy) for globaltalentlab.services at `http://127.0.0.1:3199`.
+
+Updating:
+
+```bash
+git pull
+npm ci
+npx prisma db push
+npm run build
+pm2 reload gtl-web
+```
+
+Logs: `pm2 logs gtl-web` and `pm2 logs gtl-nurture-cron`.
+
 ## Where things live
 
 | What | Where |
