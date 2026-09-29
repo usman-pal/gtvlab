@@ -1,0 +1,3 @@
+{
+  "crons": [{ "path": "/api/cron/nurture", "schedule": "0 * * * *" }]
+}

@@ -1,0 +1,223 @@
+// Global Talent Lab — funnel database.
+// Local dev uses SQLite. For production switch `provider` to "postgresql"
+// and point DATABASE_URL at a managed Postgres (Neon / Supabase / Vercel Postgres).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  /// Unguessable token used in result / booking URLs. Never expose `id`.
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// "website" | "legacy_google_form" | "direct_purchase"
+  origin String @default("website")
+
+  // ---- Attribution (first touch; retained through every later purchase) ----
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  ref          String?
+  referrer     String?
+  landingPath  String?
+  firstSeenAt  DateTime?
+  visitorId    String?
+  /// JSON of the most recent touch, if different from first touch
+  lastTouch    String?
+
+  // ---- Assessment answers ----
+  profession      String
+  professionOther String?
+  experience      String
+  seniority       String
+  /// JSON string[]
+  evidence        String
+  evidenceOther   String?
+  achievement     String
+  helpWanted      String
+
+  // ---- Contact ----
+  name            String
+  email           String
+  whatsapp        String?
+  country         String?
+  linkedin        String?
+  consentContact  Boolean  @default(false)
+  consentWhatsapp Boolean  @default(false)
+  consentAt       DateTime?
+
+  // ---- Qualification ----
+  score     Int     @default(0)
+  /// "A" | "B" | "C"
+  grade     String
+  /// JSON string[] of human-readable strengths shown on the result page
+  strengths String  @default("[]")
+  /// JSON string[] of scoring reasons (internal only)
+  scoreNotes String @default("[]")
+  scoringVersion String @default("v1")
+
+  // ---- Pipeline ----
+  status String @default("NEW")
+
+  // Lifecycle timestamps (for time-to-convert metrics)
+  resultViewedAt         DateTime?
+  paidClickedAt          DateTime?
+  checkoutStartedAt      DateTime?
+  reviewPaidAt           DateTime?
+  reviewBookedAt         DateTime?
+  reviewCompletedAt      DateTime?
+  auditPurchasedAt       DateTime?
+  fullServicePurchasedAt DateTime?
+  contactedAt            DateTime?
+  lostAt                 DateTime?
+  nurtureOptInAt         DateTime?
+
+  // Booking details (from Cal.com webhook)
+  bookingUid        String?
+  bookingStart      DateTime?
+  bookingEnd        DateTime?
+  bookingTimezone   String?
+  meetingUrl        String?
+  rescheduleUrl     String?
+  cancelUrl         String?
+
+  revenuePence Int     @default(0)
+  unsubscribed Boolean @default(false)
+  unsubscribedAt DateTime?
+
+  /// Raw row for imported legacy leads (JSON)
+  legacyData String?
+
+  payments Payment[]
+  notes    Note[]
+  history  StatusChange[]
+  messages Message[]
+
+  @@index([createdAt])
+  @@index([grade])
+  @@index([status])
+  @@index([utmSource])
+  @@index([email])
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  leadId          String?
+  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  /// "review" | "qa" | "audit" | "strategy"
+  product         String
+  amountPence     Int
+  currency        String    @default("gbp")
+  /// "pending" | "paid" | "expired" | "refunded"
+  status          String    @default("pending")
+  provider        String    @default("stripe")
+  stripeSessionId String?   @unique
+  paidAt          DateTime?
+  customerEmail   String?
+  // Attribution snapshot at time of purchase
+  utmSource       String?
+  utmCampaign     String?
+  note            String?
+  /// Price before discount, and the code used (if any)
+  listPricePence  Int?
+  discountCode    String?
+  discountPercent Int?
+
+  @@index([status, product])
+  @@index([discountCode])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  body      String
+}
+
+model StatusChange {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  from      String?
+  to        String
+  /// "system" | "admin" | "stripe" | "cal"
+  actor     String   @default("system")
+}
+
+/// Outbound email / WhatsApp queue — immediate messages and the nurture sequence.
+model Message {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  leadId    String
+  lead      Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  /// "email" | "whatsapp"
+  channel   String
+  /// template key, e.g. "result_ab", "nurture_d2"
+  template  String
+  sendAt    DateTime
+  /// "queued" | "sent" | "skipped" | "failed" | "manual" (WhatsApp without API: send from dashboard)
+  status    String    @default("queued")
+  sentAt    DateTime?
+  error     String?
+
+  @@index([status, sendAt])
+}
+
+/// First-party funnel events (no free-text answers, no personal data).
+model Event {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  name        String
+  visitorId   String?
+  leadId      String?
+  path        String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  /// JSON of small, non-sensitive props (e.g. step number)
+  props       String?
+
+  @@index([name, createdAt])
+  @@index([utmSource])
+}
+
+/// Marketing spend per source/campaign, entered in the admin, for CAC & cost-per-qualified-lead.
+model Spend {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  utmSource   String
+  utmCampaign String?
+  amountPence Int
+  periodStart DateTime?
+  periodEnd   DateTime?
+  note        String?
+}
+
+/// Percentage discount codes created in the admin and applied at checkout.
+model DiscountCode {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now())
+  /// Stored upper-case; customers can type it in any case.
+  code       String    @unique
+  percentOff Int
+  /// Comma-separated product keys (review,qa,audit,strategy); null = all products
+  products   String?
+  /// Maximum paid redemptions; null = unlimited
+  maxUses    Int?
+  expiresAt  DateTime?
+  active     Boolean   @default(true)
+  note       String?
+}
