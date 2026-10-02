@@ -2,12 +2,21 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { adminPasswordOk, createAdminSession, destroyAdminSession, isAdmin } from "@/lib/auth";
+import { adminPasswordOk, createAdminSession, destroyAdminSession, getAdmin, OWNER_ID } from "@/lib/auth";
+import { verifyPassword } from "@/lib/passwords";
 import { setStatus, fulfilPayment } from "@/lib/leads";
-import { products, LEAD_STATUSES, type ProductKey } from "@/lib/site-config";
+import { products, publicProducts, LEAD_STATUSES, type ProductKey } from "@/lib/site-config";
 
 async function guard() {
-  if (!(await isAdmin())) redirect("/admin/login");
+  const a = await getAdmin();
+  if (!a) redirect("/admin/login");
+  return a;
+}
+
+async function superGuard() {
+  const a = await guard();
+  if (a.role !== "SUPER_ADMIN") redirect("/admin?denied=1");
+  return a;
 }
 
 const loginAttempts = new Map<string, number[]>();
@@ -19,8 +28,19 @@ export async function login(_: unknown, form: FormData) {
   if (recent.length >= 20) return { error: "Too many attempts. Try again later." };
   recent.push(now);
   loginAttempts.set(k, recent);
-  if (!adminPasswordOk(String(form.get("password") ?? ""))) return { error: "Incorrect password." };
-  await createAdminSession();
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const password = String(form.get("password") ?? "");
+  if (email) {
+    // Named admin accounts (created by a super admin under Team)
+    const u = await db.adminUser.findUnique({ where: { email } });
+    if (!u || !u.active || !(await verifyPassword(password, u.passwordHash))) return { error: "Incorrect email or password." };
+    await db.adminUser.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } });
+    await createAdminSession(u.id);
+  } else {
+    // Owner login (ADMIN_PASSWORD) — always super admin
+    if (!adminPasswordOk(password)) return { error: "Incorrect password." };
+    await createAdminSession(OWNER_ID);
+  }
   redirect("/admin");
 }
 
@@ -75,7 +95,7 @@ export async function markMessageSent(form: FormData) {
 }
 
 export async function addSpend(form: FormData) {
-  await guard();
+  await superGuard();
   const utmSource = String(form.get("utmSource") ?? "").trim().toLowerCase();
   const amount = Math.round(Number(form.get("amount")) * 100);
   if (!utmSource || !Number.isFinite(amount) || amount <= 0) return;
@@ -90,7 +110,7 @@ export async function addSpend(form: FormData) {
 }
 
 export async function deleteSpend(form: FormData) {
-  await guard();
+  await superGuard();
   await db.spend.delete({ where: { id: String(form.get("id")) } }).catch(() => null);
   revalidatePath("/admin/campaigns");
 }
@@ -98,13 +118,13 @@ export async function deleteSpend(form: FormData) {
 // ---------------------------------------------------------------- discount codes
 
 export async function createDiscount(_: unknown, form: FormData): Promise<{ error?: string; ok?: string }> {
-  await guard();
+  await superGuard();
   const { normaliseCode } = await import("@/lib/discounts");
   const code = normaliseCode(form.get("code"));
   const percent = Math.round(Number(form.get("percentOff")));
   if (!/^[A-Z0-9_-]{3,40}$/.test(code)) return { error: "Code must be 3–40 letters, numbers, - or _." };
   if (!Number.isFinite(percent) || percent < 1 || percent > 100) return { error: "Discount must be between 1 and 100%." };
-  const picked = form.getAll("products").map(String).filter((p) => p in products);
+  const picked = form.getAll("products").map(String).filter((p) => publicProducts.some((x) => x.key === p));
   const maxRaw = String(form.get("maxUses") ?? "").trim();
   const maxUses = maxRaw ? Math.round(Number(maxRaw)) : null;
   if (maxUses !== null && (!Number.isFinite(maxUses) || maxUses < 1)) return { error: "Max uses must be 1 or more (or blank for unlimited)." };
@@ -114,7 +134,7 @@ export async function createDiscount(_: unknown, form: FormData): Promise<{ erro
     data: {
       code,
       percentOff: percent,
-      products: picked.length && picked.length < Object.keys(products).length ? picked.join(",") : null,
+      products: picked.length && picked.length < publicProducts.length ? picked.join(",") : null,
       maxUses,
       expiresAt: exp ? new Date(`${exp}T23:59:59.999Z`) : null,
       note: String(form.get("note") ?? "").trim().slice(0, 200) || null,
@@ -125,7 +145,7 @@ export async function createDiscount(_: unknown, form: FormData): Promise<{ erro
 }
 
 export async function toggleDiscount(form: FormData) {
-  await guard();
+  await superGuard();
   const id = String(form.get("id"));
   const d = await db.discountCode.findUnique({ where: { id } });
   if (d) await db.discountCode.update({ where: { id }, data: { active: !d.active } });

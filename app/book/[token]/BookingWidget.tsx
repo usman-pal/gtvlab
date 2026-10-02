@@ -5,16 +5,39 @@ import { track } from "@/lib/client/tracking";
 
 type CalFn = ((...args: unknown[]) => void) & { loaded?: boolean; ns?: Record<string, unknown>; q?: unknown[] };
 
-async function confirm(token: string, data: Record<string, unknown>) {
-  await fetch("/api/booking/confirm", {
+/** Where a booking is confirmed and what happens next. Defaults to the Eligibility Review flow. */
+type Target = {
+  /** POST endpoint that records the booking */
+  confirmPath?: string;
+  /** Extra fields sent to confirmPath */
+  extra?: Record<string, unknown>;
+  /** Page to open after booking */
+  redirectTo?: string;
+};
+
+async function confirm(token: string, data: Record<string, unknown>, target: Target = {}) {
+  await fetch(target.confirmPath ?? "/api/booking/confirm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...data }),
+    body: JSON.stringify({ token, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...target.extra, ...data }),
   }).catch(() => {});
 }
 
-/** Cal.com inline embed, prefilled and tagged with the lead token so the webhook can match the booking. */
-export function CalBooking({ token, name, email, calLink, calOrigin }: { token: string; name: string; email: string; calLink: string; calOrigin: string }) {
+/**
+ * Cal.com inline embed, prefilled and tagged with metadata so the webhook can match the booking —
+ * the lead token for the Eligibility Review, or the programme stage id for programme sessions.
+ */
+export function CalBooking({
+  token,
+  name,
+  email,
+  calLink,
+  calOrigin,
+  metadata,
+  confirmPath,
+  extra,
+  redirectTo,
+}: { token: string; name: string; email: string; calLink: string; calOrigin: string; metadata?: Record<string, string> } & Target) {
   const router = useRouter();
   const done = useRef(false);
   const [loaded, setLoaded] = useState(false);
@@ -53,7 +76,13 @@ export function CalBooking({ token, name, email, calLink, calOrigin }: { token: 
     ns("inline", {
       elementOrSelector: "#cal-inline",
       calLink,
-      config: { name, email, "metadata[leadToken]": token, layout: "month_view", theme: "light" },
+      config: {
+        name,
+        email,
+        ...Object.fromEntries(Object.entries(metadata ?? { leadToken: token }).map(([k, v]) => [`metadata[${k}]`, v])),
+        layout: "month_view",
+        theme: "light",
+      },
     });
     ns("ui", { hideEventTypeDetails: false, layout: "month_view", cssVarsPerTheme: { light: { "cal-brand": "#0b1f3a" } } });
     const onBooked = (e: { detail?: { data?: Record<string, unknown> } }) => {
@@ -67,7 +96,7 @@ export function CalBooking({ token, name, email, calLink, calOrigin }: { token: 
         startTime: booking.startTime,
         endTime: booking.endTime,
         videoCallUrl: booking.videoCallUrl,
-      }).finally(() => router.push(`/book/${token}/confirmed`));
+      }, { confirmPath, extra }).finally(() => router.push(redirectTo ?? `/book/${token}/confirmed`));
     };
     ns("on", { action: "bookingSuccessfulV2", callback: onBooked });
     ns("on", { action: "bookingSuccessful", callback: onBooked });
@@ -83,7 +112,7 @@ export function CalBooking({ token, name, email, calLink, calOrigin }: { token: 
 }
 
 /** Local-development stand-in for Cal.com. */
-export function MockBooking({ token }: { token: string }) {
+export function MockBooking({ token, confirmPath, extra, redirectTo, minutes = 30 }: { token: string; minutes?: number } & Target) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const slots = [1, 2, 3].map((d) => {
@@ -106,8 +135,9 @@ export function MockBooking({ token }: { token: string }) {
             onClick={async () => {
               setBusy(true);
               track("calendar_booking_completed", {}, { internal: false });
-              await confirm(token, { uid: `mock_${Date.now()}`, startTime: s.toISOString(), endTime: new Date(s.getTime() + 30 * 60000).toISOString(), mock: true });
-              router.push(`/book/${token}/confirmed`);
+              await confirm(token, { uid: `mock_${Date.now()}`, startTime: s.toISOString(), endTime: new Date(s.getTime() + minutes * 60000).toISOString(), mock: true }, { confirmPath, extra });
+              router.push(redirectTo ?? `/book/${token}/confirmed`);
+              router.refresh();
             }}
           >
             {s.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}

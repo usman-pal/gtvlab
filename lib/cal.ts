@@ -14,3 +14,10 @@ export const calOrigin = process.env.NEXT_PUBLIC_CAL_ORIGIN || "https://app.cal.
 export function mockBookingAllowed() {
   return !calLink && process.env.NODE_ENV !== "production";
 }
+
+/** Cal.com event for programme sessions (60 min, hidden). Set NEXT_PUBLIC_CAL_STRATEGY_LINK. */
+export const calStrategyLink = normaliseCalLink(process.env.NEXT_PUBLIC_CAL_STRATEGY_LINK);
+
+export function mockStrategyBookingAllowed() {
+  return !calStrategyLink && process.env.NODE_ENV !== "production";
+}

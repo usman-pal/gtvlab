@@ -103,6 +103,12 @@ model Lead {
   history  StatusChange[]
   messages Message[]
 
+  /// Application Strategy & Evidence Programme (one per applicant, created on invitation)
+  programme StrategyProgramme?
+  /// Client-portal login for this applicant (created from the programme invitation)
+  account   ClientAccount?
+  lifecycle LifecycleEvent[]
+
   @@index([createdAt])
   @@index([grade])
   @@index([status])
@@ -115,7 +121,7 @@ model Payment {
   createdAt       DateTime  @default(now())
   leadId          String?
   lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  /// "review" | "qa" | "audit" | "strategy"
+  /// "review" | "qa" | "audit" | "strategy" | "strategy_p1" | "strategy_p2" | "strategy_writer"
   product         String
   amountPence     Int
   currency        String    @default("gbp")
@@ -220,4 +226,146 @@ model DiscountCode {
   expiresAt  DateTime?
   active     Boolean   @default(true)
   note       String?
+}
+
+// ============================================================================
+// Application Strategy & Evidence Programme — client portal
+// Everything hangs off the same Lead so attribution and revenue stay joined up:
+// Lead → ClientAccount → StrategyProgramme → ProgrammeStage → Payment / LifecycleEvent
+// ============================================================================
+
+/// Admin logins with roles. The ADMIN_PASSWORD login remains as the owner (super admin).
+model AdminUser {
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  email        String    @unique
+  name         String
+  passwordHash String
+  /// "ADMIN" | "SUPER_ADMIN"
+  role         String    @default("ADMIN")
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+}
+
+model StrategyProgramme {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  leadId    String   @unique
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  /// INVITED | ACCEPTED | PHASE_1_PAID | PHASE_1_COMPLETE | PHASE_2_PAID | IN_PROGRESS | COMPLETED | DECLINED | EXPIRED
+  /// (NOT_INVITED = no programme row)
+  status String @default("INVITED")
+
+  // ---- Invitation (single-purpose, expiring; cleared once accepted) ----
+  inviteEmail     String
+  inviteToken     String?   @unique
+  inviteExpiresAt DateTime?
+  inviteNote      String?
+  invitedAt       DateTime  @default(now())
+  /// AdminUser id, or "owner" for the ADMIN_PASSWORD login
+  invitedById     String?
+  invitedByName   String?
+  inviteSentCount Int       @default(1)
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+
+  /// Admin responsible for this client (ADMIN users can manage only their own clients)
+  assignedAdminId String?
+
+  phase1PaidAt DateTime?
+  phase2PaidAt DateTime?
+  phase2ReminderAt DateTime?
+  /// Optional "Hire a Writer" add-on (£250), offered during Stage 2
+  writerPaidAt     DateTime?
+
+  /// Private Google Drive folder for this client — documents live there, not here
+  driveUrl String?
+
+  completedAt     DateTime?
+  completedByName String?
+
+  stages ProgrammeStage[]
+
+  @@index([status])
+}
+
+model ProgrammeStage {
+  id          String            @id @default(cuid())
+  programmeId String
+  programme   StrategyProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  /// 1–4
+  number      Int
+  /// LOCKED | AVAILABLE | BOOKED | COMPLETED
+  status      String            @default("LOCKED")
+  unlockedAt      DateTime?
+  completedAt     DateTime?
+  completedByName String?
+
+  // Session booking (Cal.com, same mechanism as the Eligibility Review)
+  bookedAt        DateTime?
+  bookingUid      String?
+  bookingStart    DateTime?
+  bookingEnd      DateTime?
+  bookingTimezone String?
+  meetingUrl      String?
+  rescheduleUrl   String?
+  cancelUrl       String?
+
+  @@unique([programmeId, number])
+  @@index([bookingUid])
+}
+
+model ClientAccount {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  leadId          String    @unique
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  /// Always the invited email, lower-case
+  email           String    @unique
+  name            String
+  passwordHash    String
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  sessions        ClientSession[]
+  resets          PasswordReset[]
+}
+
+model ClientSession {
+  id        String        @id @default(cuid())
+  createdAt DateTime      @default(now())
+  /// sha256 of the cookie value — the raw value is never stored
+  tokenHash String        @unique
+  accountId String
+  account   ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+}
+
+model PasswordReset {
+  id        String        @id @default(cuid())
+  createdAt DateTime      @default(now())
+  tokenHash String        @unique
+  accountId String
+  account   ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+/// Typed lifecycle events (STRATEGY_INVITATION_SENT, PHASE_1_PAID, STAGE_1_COMPLETED …),
+/// shown alongside the lead's original timestamps in the admin Lifecycle panel.
+model LifecycleEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String
+  /// "system" | "admin" | "client" | "stripe" | "cal" | "mock"
+  actor     String   @default("system")
+  actorName String?
+  /// JSON of relevant metadata (amount, stage, booking time …)
+  meta      String?
+
+  @@index([leadId, createdAt])
+  @@index([type])
 }

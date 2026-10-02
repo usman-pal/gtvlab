@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types tests/scoring.test.ts tests/discounts.test.ts",
+    "test": "node --test --experimental-strip-types tests/scoring.test.ts tests/discounts.test.ts tests/programme.test.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "import:legacy": "node --experimental-strip-types scripts/import-legacy.ts",

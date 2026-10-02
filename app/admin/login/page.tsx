@@ -10,8 +10,12 @@ export default function Login() {
         <form action={action} className="card">
           <h1 style={{ fontSize: "1.3rem" }}>Global Talent Lab — admin</h1>
           <label className="field">
+            <span>Email <em>— leave blank for the owner login</em></span>
+            <input className="input" type="email" name="email" autoComplete="username" />
+          </label>
+          <label className="field">
             <span>Password</span>
-            <input className="input" type="password" name="password" autoComplete="current-password" autoFocus required />
+            <input className="input" type="password" name="password" autoComplete="current-password" required />
           </label>
           {state?.error && <p className="err">{state.error}</p>}
           <button className="btn btn-dark btn-block" disabled={pending}>Sign in</button>

@@ -68,6 +68,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <>
+      {sp.denied && <div className="callout warn small" style={{ marginBottom: 16 }}>That page is only available to super admins.</div>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <h1 style={{ fontSize: "1.5rem", margin: 0 }}>Funnel dashboard</h1>

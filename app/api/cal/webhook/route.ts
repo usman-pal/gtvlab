@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { recordBooking, setStatus } from "@/lib/leads";
+import { recordStageBooking, cancelStageBooking } from "@/lib/programme";
 import { calOrigin } from "@/lib/cal";
 import { safeEqual } from "@/lib/security";
 import { notifyAdmin } from "@/lib/messaging";
@@ -37,6 +38,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
   const p = body.payload ?? {};
+
+  // Programme sessions carry the stage id instead of the lead token.
+  const stageId = (p.metadata?.programmeStageId as string | undefined) ?? (p.responses?.programmeStageId as string | undefined);
+  const stage = stageId
+    ? await db.programmeStage.findUnique({ where: { id: stageId } })
+    : p.uid ? await db.programmeStage.findFirst({ where: { bookingUid: p.uid } }) : null;
+  if (stage) {
+    if (body.triggerEvent === "BOOKING_CANCELLED") {
+      if (stage.bookingUid === p.uid) await cancelStageBooking(stage);
+    } else if ((body.triggerEvent === "BOOKING_CREATED" || body.triggerEvent === "BOOKING_RESCHEDULED") && p.uid && p.startTime && stage.status !== "LOCKED") {
+      await recordStageBooking(stage, {
+        uid: p.uid,
+        start: new Date(p.startTime),
+        end: p.endTime ? new Date(p.endTime) : null,
+        timezone: p.attendees?.[0]?.timeZone ?? null,
+        meetingUrl: (p.metadata?.videoCallUrl as string | undefined) ?? p.videoCallData?.url ?? (p.location?.startsWith("http") ? p.location : null),
+        rescheduleUrl: `${calOrigin}/reschedule/${p.uid}`,
+        cancelUrl: `${calOrigin}/booking/${p.uid}?cancel=true`,
+      }, "cal");
+    }
+    return NextResponse.json({ ok: true, programme: true });
+  }
+
   const token = (p.metadata?.leadToken as string | undefined) ?? (p.responses?.leadToken as string | undefined);
   const email = p.attendees?.[0]?.email?.toLowerCase();
 

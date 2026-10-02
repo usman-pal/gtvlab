@@ -14,15 +14,15 @@ export type TemplateLead = {
 
 export type Rendered = { subject: string; html: string; text: string };
 
-const first = (name: string) => (name || "there").trim().split(/\s+/)[0];
+export const first = (name: string) => (name || "there").trim().split(/\s+/)[0];
 const url = (path: string) => `${site.url}${path}`;
 export const resultUrl = (token: string) => url(`/assessment/result/${token}`);
 export const reviewUrl = (token: string) => url(`/assessment/result/${token}#review`);
 export const bookUrl = (token: string) => url(`/book/${token}`);
 
-type Block = { p?: string; h?: string; list?: string[]; cta?: { label: string; href: string }; small?: string };
+export type Block = { p?: string; h?: string; list?: string[]; cta?: { label: string; href: string }; small?: string };
 
-function layout(blocks: Block[], unsubscribeHref?: string): { html: string; text: string } {
+export function layout(blocks: Block[], unsubscribeHref?: string): { html: string; text: string } {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const html = blocks
     .map((b) => {

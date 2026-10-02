@@ -1,10 +1,12 @@
+import { requireSuperAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { products, formatGBP } from "@/lib/site-config";
+import { products, publicProducts, formatGBP } from "@/lib/site-config";
 import { codeProducts } from "@/lib/discounts";
 import { toggleDiscount } from "../../actions";
 import CreateDiscountForm from "./CreateDiscountForm";
 
 export default async function Discounts() {
+  await requireSuperAdmin();
   const [codes, usage] = await Promise.all([
     db.discountCode.findMany({ orderBy: { createdAt: "desc" } }),
     db.payment.groupBy({
@@ -27,7 +29,7 @@ export default async function Discounts() {
 
       <div className="card" style={{ margin: "16px 0 20px" }}>
         <h3>Create a code</h3>
-        <CreateDiscountForm products={Object.values(products).map((p) => ({ key: p.key, name: `${p.name} (${formatGBP(p.pricePence)})` }))} />
+        <CreateDiscountForm products={publicProducts.map((p) => ({ key: p.key, name: `${p.name} (${formatGBP(p.pricePence)})` }))} />
       </div>
 
       <div className="table-wrap">

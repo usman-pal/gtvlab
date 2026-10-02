@@ -6,17 +6,34 @@ import { PROFESSIONS, EXPERIENCE, SENIORITY, EVIDENCE, HELP_WANTED, labelFor } f
 import { LEAD_STATUSES, statusLabel, products, formatGBP, site } from "@/lib/site-config";
 import { safeJson, waMeLink } from "@/lib/messaging";
 import { changeStatus, addNote, recordManualPayment, markMessageSent } from "../../../actions";
+import { requireAdmin } from "@/lib/auth";
+import { LIFECYCLE_LABELS } from "@/lib/lifecycle";
+import { deriveStatus, programmeStatusLabel } from "@/lib/programme-content";
+import StrategyPanel, { inviteProps } from "@/components/admin/StrategyPanel";
+import InviteModal from "@/components/admin/InviteModal";
 
 const dt = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 16).replace("T", " ") : "—");
 const hours = (a: Date | null, b: Date | null) => (a && b ? `${Math.round(((b.getTime() - a.getTime()) / 36e5) * 10) / 10}h` : "");
 
-export default async function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const admin = await requireAdmin();
   const lead = await db.lead.findUnique({
     where: { id },
-    include: { notes: { orderBy: { createdAt: "desc" } }, history: { orderBy: { createdAt: "asc" } }, payments: { orderBy: { createdAt: "desc" } }, messages: { orderBy: { sendAt: "asc" } } },
+    include: {
+      notes: { orderBy: { createdAt: "desc" } },
+      history: { orderBy: { createdAt: "asc" } },
+      payments: { orderBy: { createdAt: "desc" } },
+      messages: { orderBy: { sendAt: "asc" } },
+      programme: { include: { stages: { orderBy: { number: "asc" } } } },
+      account: true,
+      lifecycle: { orderBy: { createdAt: "asc" } },
+    },
   });
   if (!lead) notFound();
+  const admins = await db.adminUser.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const strategyStatus = lead.programme ? deriveStatus(lead.programme) : "NOT_INVITED";
   const evidence = safeJson<string[]>(lead.evidence, []);
   const strengths = safeJson<string[]>(lead.strengths, []);
   const notes = safeJson<string[]>(lead.scoreNotes, []);
@@ -29,7 +46,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     ["Result viewed", lead.resultViewedAt],
     ["Paid CTA clicked", lead.paidClickedAt],
     ["Checkout started", lead.checkoutStartedAt],
-    ["£49 review paid", lead.reviewPaidAt],
+    ["Eligibility Review paid", lead.reviewPaidAt],
     ["Review booked", lead.reviewBookedAt],
     ["Review completed", lead.reviewCompletedAt],
     ["Audit purchased", lead.auditPurchasedAt],
@@ -38,6 +55,17 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     ["Guidance opt-in", lead.nurtureOptInAt],
     ["Lost / not suitable", lead.lostAt],
   ];
+  // Typed programme events (STRATEGY_INVITATION_SENT, PHASE_1_PAID …) merged into the same chronology.
+  const has = (t: string) => lead.lifecycle.some((e) => e.type === t);
+  const covered = (k: string) => (k === "Review completed" && has("ELIGIBILITY_REVIEW_COMPLETED")) || (k === "Full service purchased" && has("PHASE_1_PAID"));
+  const lifecycleRows = [
+    ...timeline.filter(([k, d]) => d && !covered(k)).map(([k, d]) => ({ key: k, label: k, at: d!, meta: "" })),
+    ...lead.lifecycle.map((e) => {
+      const m = safeJson<Record<string, unknown>>(e.meta, {});
+      const bits = [e.actorName ?? (e.actor !== "system" ? e.actor : ""), typeof m.amount === "number" ? formatGBP(m.amount * 100) : "", typeof m.start === "string" ? `for ${m.start.slice(0, 16).replace("T", " ")}` : "", m.resend ? "re-sent" : ""];
+      return { key: e.id, label: LIFECYCLE_LABELS[e.type] ?? e.type, at: e.createdAt, meta: bits.filter(Boolean).join(" · ") };
+    }),
+  ].sort((a, b) => a.at.getTime() - b.at.getTime());
 
   return (
     <>
@@ -53,8 +81,11 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
           <p className="small" style={{ margin: "6px 0 0" }}>
             Status: <strong>{statusLabel(lead.status)}</strong> · Revenue: <strong>{formatGBP(lead.revenuePence)}</strong> · {lead.unsubscribed ? <span className="tag">unsubscribed</span> : null}
             {lead.consentWhatsapp ? <span className="tag">WhatsApp consent</span> : null}
+            {" "}· Application Strategy: <a href="#strategy"><strong>{programmeStatusLabel(strategyStatus)}</strong></a>
           </p>
         </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+        {!lead.programme && <InviteModal {...inviteProps(lead)} />}
         <form action={changeStatus} className="filters">
           <input type="hidden" name="id" value={lead.id} />
           <label>Change status
@@ -62,7 +93,10 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
           </label>
           <button className="btn btn-dark">Update</button>
         </form>
+        </div>
       </div>
+      {sp.msg && <div className="callout small" style={{ marginTop: 14, padding: "10px 14px" }}>{sp.msg}</div>}
+      {sp.err && <div className="callout warn small" style={{ marginTop: 14, padding: "10px 14px" }}>{sp.err}</div>}
 
       <div className="grid g2" style={{ marginTop: 20, alignItems: "start" }}>
         <div className="card">
@@ -105,8 +139,12 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
             <h3>Lifecycle</h3>
             <table className="t">
               <tbody>
-                {timeline.filter(([, d]) => d).map(([k, d]) => (
-                  <tr key={k}><td>{k}</td><td>{dt(d)}</td><td className="num muted">{k !== "Assessment submitted" ? hours(lead.createdAt, d) : ""}</td></tr>
+                {lifecycleRows.map((r) => (
+                  <tr key={r.key}>
+                    <td>{r.label}{r.meta && <div className="xs muted">{r.meta}</div>}</td>
+                    <td>{dt(r.at)}</td>
+                    <td className="num muted">{r.key !== "Assessment submitted" ? hours(lead.createdAt, r.at) : ""}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -124,9 +162,12 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
+      <StrategyPanel lead={lead} programme={lead.programme} account={lead.account} payments={lead.payments} admin={admin} admins={admins} />
+
       <div className="grid g2" style={{ marginTop: 16, alignItems: "start" }}>
         <div className="card">
           <h3>Internal notes</h3>
+          <p className="xs muted" style={{ marginTop: -2 }}>Private — visible only to admins, never in the client portal.</p>
           <form action={addNote}>
             <input type="hidden" name="id" value={lead.id} />
             <textarea className="input" name="body" style={{ minHeight: 90 }} placeholder="Add a note…" />

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { isAdmin } from "@/lib/auth";
+import { getAdmin } from "@/lib/auth";
 import { safeJson } from "@/lib/messaging";
 
 const cols = [
@@ -14,7 +14,7 @@ const cell = (v: unknown) => {
 };
 
 export async function GET() {
-  if (!(await isAdmin())) return new Response("Unauthorised", { status: 401 });
+  if ((await getAdmin())?.role !== "SUPER_ADMIN") return new Response("Unauthorised", { status: 401 });
   const leads = await db.lead.findMany({ orderBy: { createdAt: "desc" } });
   const lines = [cols.join(",")];
   for (const l of leads) {

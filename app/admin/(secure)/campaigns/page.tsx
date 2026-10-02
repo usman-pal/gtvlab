@@ -1,3 +1,4 @@
+import { requireSuperAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { funnel, parseRange, pct, rate, gbp, perUnit } from "@/lib/metrics";
 import { site } from "@/lib/site-config";
@@ -7,6 +8,7 @@ import LinkBuilder from "./LinkBuilder";
 type SP = Record<string, string | undefined>;
 
 export default async function Campaigns({ searchParams }: { searchParams: Promise<SP> }) {
+  await requireSuperAdmin();
   const sp = await searchParams;
   const range = parseRange(sp);
   const { rows } = await funnel(range, {}, true);

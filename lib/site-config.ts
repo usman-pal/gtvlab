@@ -26,7 +26,7 @@ export const site = {
     "Global Talent Lab is independent and is not affiliated with the UK Home Office, UK Government or any endorsing body.",
 };
 
-export type ProductKey = "review" | "qa" | "audit" | "strategy";
+export type ProductKey = "review" | "qa" | "audit" | "strategy" | "strategy_p1" | "strategy_p2" | "strategy_writer";
 
 export type Product = {
   key: ProductKey;
@@ -39,6 +39,8 @@ export type Product = {
   paidStatus: string;
   /** Lead timestamp set when this product is paid */
   paidField: "reviewPaidAt" | "auditPurchasedAt" | "fullServicePurchasedAt" | null;
+  /** Programme phases are bought from the client portal only — not sold on the result page or via discount codes */
+  programme?: true;
 };
 
 export const products: Record<ProductKey, Product> = {
@@ -104,7 +106,51 @@ export const products: Record<ProductKey, Product> = {
     paidStatus: "FULL_SERVICE_PURCHASED",
     paidField: "fullServicePurchasedAt",
   },
+  strategy_p1: {
+    key: "strategy_p1",
+    name: "Application Strategy & Evidence Programme — Phase 1",
+    pricePence: 99900,
+    duration: "Stages 1–2: Career Mapping · Evidence & Write-up Strategy",
+    summary: "The strategy phase of the Application Strategy & Evidence Programme.",
+    deliverables: ["Criteria & Evidence Map", "Personalised Application Write-up Plan"],
+    paidStatus: "FULL_SERVICE_PURCHASED",
+    paidField: "fullServicePurchasedAt",
+    programme: true,
+  },
+  strategy_p2: {
+    key: "strategy_p2",
+    name: "Application Strategy & Evidence Programme — Phase 2",
+    pricePence: 90000,
+    duration: "Stages 3–4: Evidence Review · Refine & Finalise",
+    summary: "The review and refinement phase of the Application Strategy & Evidence Programme.",
+    deliverables: ["Written Evidence Feedback", "Final Readiness Review"],
+    paidStatus: "FULL_SERVICE_PURCHASED",
+    paidField: null,
+    programme: true,
+  },
+  strategy_writer: {
+    key: "strategy_writer",
+    name: "Application Strategy & Evidence Programme — Hire a Writer",
+    pricePence: 25000,
+    duration: "Optional add-on · writer joins your Evidence & Write-up Strategy session",
+    summary: "A writer joins Session 2 so your application write-up can start straight away.",
+    deliverables: ["Writer attends Session 2", "Write-up started from your Write-up Plan"],
+    paidStatus: "FULL_SERVICE_PURCHASED",
+    paidField: null,
+    programme: true,
+  },
 };
+
+/** Products that can be sold on the public result page and targeted by discount codes. */
+export const publicProducts = Object.values(products).filter((p) => !p.programme);
+
+/** Business WhatsApp link for programme clients (WHATSAPP_BUSINESS_URL, or a number in WHATSAPP_BUSINESS_NUMBER). */
+export function whatsappBusinessUrl(): string | null {
+  const url = process.env.WHATSAPP_BUSINESS_URL?.trim();
+  if (url) return url;
+  const n = process.env.WHATSAPP_BUSINESS_NUMBER?.replace(/[^\d]/g, "");
+  return n ? `https://wa.me/${n}` : null;
+}
 
 export function formatGBP(pence: number): string {
   const pounds = pence / 100;

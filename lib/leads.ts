@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { products, STATUS_RANK, type ProductKey, formatGBP } from "./site-config";
 import { queueOnce, processDue, notifyAdmin } from "./messaging";
+import { logEvent } from "./lifecycle";
 import type { Lead } from "@prisma/client";
 
 /** Moves a lead forward in the pipeline (never backwards) and records the change. */
@@ -22,6 +23,7 @@ export async function setStatus(lead: Pick<Lead, "id" | "status">, to: string, a
     db.lead.update({ where: { id: lead.id }, data: { status: to, ...stamp } }),
     db.statusChange.create({ data: { leadId: lead.id, from: lead.status, to, actor } }),
   ]);
+  if (to === "REVIEW_COMPLETED") await logEvent(lead.id, "ELIGIBILITY_REVIEW_COMPLETED", actor);
 }
 
 export function gradeStatus(grade: string) {
@@ -51,7 +53,12 @@ export async function fulfilPayment(paymentId: string, actor: "stripe" | "mock" 
 
     await db.event.create({
       data: {
-        name: product.key === "review" ? "review_purchased" : product.key === "strategy" ? "full_service_purchased" : "audit_purchased",
+        name:
+          product.key === "review" ? "review_purchased"
+          : product.key === "strategy" || product.key === "strategy_p1" ? "full_service_purchased"
+          : product.key === "strategy_p2" ? "programme_phase2_purchased"
+          : product.key === "strategy_writer" ? "writer_addon_purchased"
+          : "audit_purchased",
         leadId: lead.id,
         visitorId: lead.visitorId,
         utmSource: lead.utmSource,
@@ -61,7 +68,11 @@ export async function fulfilPayment(paymentId: string, actor: "stripe" | "mock" 
       },
     });
 
-    if (product.key === "review") {
+    if (product.programme) {
+      // Unlocks the stage, records the lifecycle event and sends the programme confirmation.
+      const { onProgrammePaymentPaid } = await import("./programme");
+      await onProgrammePaymentPaid(payment, actor);
+    } else if (product.key === "review") {
       await queueOnce(lead.id, "review_paid");
       await queueOnce(lead.id, "book_reminder", 24 * 60 * 60 * 1000);
     } else {
