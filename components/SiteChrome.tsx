@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { site } from "@/lib/site-config";
 
-export function Header({ minimal = false }: { minimal?: boolean }) {
+export function Header({ minimal = false, home = false }: { minimal?: boolean; home?: boolean }) {
   return (
     <header className="header">
       <div className="container header-inner">
@@ -15,13 +15,20 @@ export function Header({ minimal = false }: { minimal?: boolean }) {
         </Link>
         {!minimal && (
           <nav className="nav" aria-label="Main">
-            <a href="/#who">Who it&apos;s for</a>
-            <a href="/#how">How it works</a>
-            <a href="/#services">Services &amp; pricing</a>
+            <a href="/#why">Why Global Talent</a>
+            <a href="/#who">Who It&apos;s For</a>
+            <a href="/#path">Find Your Path</a>
+            <a href="/#how">How We Help</a>
             <a href="/#faq">FAQ</a>
           </nav>
         )}
-        {!minimal && (
+        {!minimal && home && (
+          <div className="header-actions">
+            <Link href={site.primaryCtaHref} className="header-link">{site.primaryCtaShort}</Link>
+            <a href="#path" className="btn btn-primary">Find My Path</a>
+          </div>
+        )}
+        {!minimal && !home && (
           <Link href={site.primaryCtaHref} className="btn btn-primary">
             <span className="header-cta-full">{site.primaryCta}</span>
             <span className="header-cta-short">{site.primaryCtaShort}</span>
@@ -46,7 +53,8 @@ export function Footer() {
           <div>
             <h4>Get started</h4>
             <p><Link href="/assessment">Free profile check</Link></p>
-            <p><a href="/#services">Services &amp; pricing</a></p>
+            <p><a href="/audit">Application Audit</a></p>
+            <p><a href="/#how">Services &amp; pricing</a></p>
             <p><a href="/#faq">FAQ</a></p>
           </div>
           <div>
