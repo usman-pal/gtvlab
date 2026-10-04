@@ -11,9 +11,13 @@ export async function POST(req: Request) {
   const productKey = String(form.get("product") ?? "") as ProductKey;
   const product = products[productKey];
   const lead = token ? await db.lead.findUnique({ where: { token } }) : null;
-  if (!lead || !product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Programme phases and add-ons are sold only from the client portal (/api/portal/checkout).
+  if (!lead || !product || product.programme) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const resultPath = `/assessment/result/${lead.token}`;
+  // The Application Audit has its own page: questions → pay → book.
+  const auditPath = `/audit/${lead.token}`;
+  const returnPath = productKey === "audit" ? auditPath : resultPath;
   if (productKey === "review" && lead.reviewPaidAt) return NextResponse.redirect(new URL(`/book/${lead.token}`, site.url), 303);
 
   // Optional discount code — always re-validated here, whatever the pay button showed.
@@ -22,7 +26,7 @@ export async function POST(req: Request) {
   if (normaliseCode(form.get("code"))) {
     const r = await checkDiscount(form.get("code"), product.key);
     if (!r.ok) {
-      const back = `${resultPath}?code_error=${encodeURIComponent(r.error)}&code_product=${product.key}#${productKey === "review" ? "review" : "services"}`;
+      const back = `${returnPath}?code_error=${encodeURIComponent(r.error)}&code_product=${product.key}#${productKey === "review" ? "review" : "services"}`;
       return NextResponse.redirect(new URL(back, site.url), 303);
     }
     discount = { code: r.discount.code, percentOff: r.discount.percentOff };
@@ -60,7 +64,8 @@ export async function POST(req: Request) {
     },
   });
 
-  const successPath = productKey === "review" ? `/book/${lead.token}` : `${resultPath}?purchased=${product.key}`;
+  const successPath = productKey === "review" ? `/book/${lead.token}` : productKey === "audit" ? `${auditPath}?paid=1` : `${resultPath}?purchased=${product.key}`;
+  const cancelPath = productKey === "audit" ? `${auditPath}?checkout=cancelled#pay` : `${resultPath}?checkout=cancelled#review`;
   // Fully discounted (100% code): nothing to charge, so skip the payment provider.
   if (amountPence === 0) {
     await db.payment.update({ where: { id: payment.id }, data: { provider: "discount" } });
@@ -98,14 +103,14 @@ export async function POST(req: Request) {
       },
       payment_intent_data: { metadata: { paymentId: payment.id, leadId: lead.id, product: product.key } },
       success_url: `${site.url}${successPath}${successPath.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${site.url}${resultPath}?checkout=cancelled#review`,
+      cancel_url: `${site.url}${cancelPath}`,
     });
     await db.payment.update({ where: { id: payment.id }, data: { stripeSessionId: session.id } });
     return NextResponse.redirect(session.url!, 303);
   }
 
   if (mockPaymentsAllowed()) {
-    const q = new URLSearchParams({ payment: payment.id, next: successPath, cancel: `${resultPath}?checkout=cancelled#review` });
+    const q = new URLSearchParams({ payment: payment.id, next: successPath, cancel: cancelPath });
     return NextResponse.redirect(new URL(`/dev/checkout?${q}`, site.url), 303);
   }
   return NextResponse.json({ error: "Payments are not configured" }, { status: 503 });

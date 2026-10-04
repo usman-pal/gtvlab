@@ -75,6 +75,8 @@ export async function fulfilPayment(paymentId: string, actor: "stripe" | "mock" 
     } else if (product.key === "review") {
       await queueOnce(lead.id, "review_paid");
       await queueOnce(lead.id, "book_reminder", 24 * 60 * 60 * 1000);
+    } else if (product.key === "audit") {
+      await queueOnce(lead.id, "audit_paid");
     } else {
       await queueOnce(lead.id, "purchase_confirmed");
     }

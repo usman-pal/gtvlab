@@ -234,6 +234,17 @@ export function renderTemplate(key: string, lead: TemplateLead, unsub?: string):
         ],
       };
     },
+    audit_paid: () => ({
+      subject: "Payment received — book your Application Audit",
+      marketing: false,
+      blocks: [
+        hi,
+        { p: "Thank you — your Application Audit payment has been received. A receipt is on its way from Stripe." },
+        { p: "If you haven't chosen a time yet, you can book your 90-minute call here:" },
+        { cta: { label: "Book my Application Audit", href: url(`/audit/${lead.token}`) } },
+        { p: "Once booked, please share your evidence, recommendation letters and personal statement at least 3 working days before the call." },
+      ],
+    }),
     purchase_confirmed: () => ({
       subject: "Payment received — next steps",
       marketing: false,

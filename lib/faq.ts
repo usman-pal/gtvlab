@@ -36,8 +36,8 @@ export const faqs: { q: string; a: string[] }[] = [
   {
     q: `Is the ${r} review required before purchasing other services?`,
     a: [
-      `It's the intended first step. The ${a} Evidence Audit and ${s} Application Strategy & Support are normally offered after the review, once we both know they're the right fit — so you don't buy a large package blindly.`,
-      "If you already have a complete evidence pack and want an audit straight away, email us and we'll advise.",
+      `For most people it's the right first step. The ${s} Application Strategy & Support is offered after the review, once we both know it's the right fit — so you don't buy a large package blindly.`,
+      `If you've already prepared your application and want it checked before you submit, you don't need the review: the ${a} Application Audit starts with a few short questions about your application, then you can pay and book straight away.`,
     ],
   },
   {

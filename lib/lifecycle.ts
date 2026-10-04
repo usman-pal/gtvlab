@@ -6,6 +6,9 @@ import { db } from "./db";
  */
 export const LIFECYCLE_LABELS: Record<string, string> = {
   ELIGIBILITY_REVIEW_COMPLETED: "Eligibility Review completed",
+  AUDIT_INTAKE_SUBMITTED: "Application Audit questions answered",
+  AUDIT_BOOKED: "Application Audit booked",
+  AUDIT_CANCELLED: "Application Audit booking cancelled",
   STRATEGY_INVITATION_SENT: "Strategy invitation sent",
   STRATEGY_INVITATION_DECLINED: "Strategy invitation declined",
   PORTAL_ACCOUNT_CREATED: "Portal account created",

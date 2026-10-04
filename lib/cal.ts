@@ -15,6 +15,13 @@ export function mockBookingAllowed() {
   return !calLink && process.env.NODE_ENV !== "production";
 }
 
+/** Cal.com event for the Application Audit (90 min, hidden). Set NEXT_PUBLIC_CAL_AUDIT_LINK. */
+export const calAuditLink = normaliseCalLink(process.env.NEXT_PUBLIC_CAL_AUDIT_LINK);
+
+export function mockAuditBookingAllowed() {
+  return !calAuditLink && process.env.NODE_ENV !== "production";
+}
+
 /** Cal.com event for programme sessions (60 min, hidden). Set NEXT_PUBLIC_CAL_STRATEGY_LINK. */
 export const calStrategyLink = normaliseCalLink(process.env.NEXT_PUBLIC_CAL_STRATEGY_LINK);
 

@@ -8,6 +8,7 @@ import { safeJson, waMeLink } from "@/lib/messaging";
 import { changeStatus, addNote, recordManualPayment, markMessageSent } from "../../../actions";
 import { requireAdmin } from "@/lib/auth";
 import { LIFECYCLE_LABELS } from "@/lib/lifecycle";
+import { intakeRows, type AuditIntake } from "@/lib/audit-options";
 import { deriveStatus, programmeStatusLabel } from "@/lib/programme-content";
 import StrategyPanel, { inviteProps } from "@/components/admin/StrategyPanel";
 import InviteModal from "@/components/admin/InviteModal";
@@ -29,6 +30,7 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
       programme: { include: { stages: { orderBy: { number: "asc" } } } },
       account: true,
       lifecycle: { orderBy: { createdAt: "asc" } },
+      bookings: true,
     },
   });
   if (!lead) notFound();
@@ -38,6 +40,8 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
   const strengths = safeJson<string[]>(lead.strengths, []);
   const notes = safeJson<string[]>(lead.scoreNotes, []);
   const legacy = safeJson<Record<string, string> | null>(lead.legacyData, null);
+  const auditIntake = safeJson<AuditIntake | null>(lead.auditIntake, null);
+  const auditBooking = lead.bookings.find((b) => b.product === "audit");
   const lastTouch = safeJson<Record<string, string> | null>(lead.lastTouch, null);
   const resultLink = `${site.url}/assessment/result/${lead.token}`;
 
@@ -73,7 +77,12 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
         <div>
           <h1 style={{ fontSize: "1.6rem", marginBottom: 4 }}>
-            {lead.name} <span className={`g-${lead.grade}`}>· {lead.grade}</span> <span className="muted" style={{ fontSize: "1rem", fontWeight: 600 }}>score {lead.score} ({lead.scoringVersion})</span>
+            {lead.name}{" "}
+            {lead.origin === "audit_intake" ? (
+              <span className="muted" style={{ fontSize: "1rem", fontWeight: 600 }}>· Application Audit enquiry</span>
+            ) : (
+              <><span className={`g-${lead.grade}`}>· {lead.grade}</span> <span className="muted" style={{ fontSize: "1rem", fontWeight: 600 }}>score {lead.score} ({lead.scoringVersion})</span></>
+            )}
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             <a href={`mailto:${lead.email}`}>{lead.email}</a> · {lead.whatsapp ?? "no WhatsApp"} · {lead.country ?? "—"} {lead.linkedin && <>· <a href={lead.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a></>}
@@ -99,6 +108,29 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
       {sp.err && <div className="callout warn small" style={{ marginTop: 14, padding: "10px 14px" }}>{sp.err}</div>}
 
       <div className="grid g2" style={{ marginTop: 20, alignItems: "start" }}>
+        <div className="stack">
+        {auditIntake && (
+          <div className="card">
+            <h3>Application Audit — screening answers</h3>
+            <dl className="kv">
+              {intakeRows(auditIntake).map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd style={{ whiteSpace: "pre-wrap" }}>{v}</dd></Fragment>)}
+            </dl>
+            <p className="small" style={{ marginTop: 10 }}>
+              Audit: <strong>{lead.auditPurchasedAt ? `Paid ${dt(lead.auditPurchasedAt)}` : "Not paid yet"}</strong>
+              {" · "}Call: <strong>{auditBooking?.start ? `${dt(auditBooking.start)} UTC` : "Not booked"}</strong>
+              {auditBooking?.meetingUrl && <> · <a href={auditBooking.meetingUrl} target="_blank" rel="noopener noreferrer">video link</a></>}
+              <br />
+              <span className="muted">Their audit page (pay / book): <a href={`${site.url}/audit/${lead.token}`} target="_blank" rel="noopener noreferrer">{`${site.url}/audit/${lead.token}`}</a></span>
+            </p>
+          </div>
+        )}
+        {!auditIntake && auditBooking?.start && (
+          <div className="card">
+            <h3>Application Audit</h3>
+            <p className="small" style={{ margin: 0 }}>Call booked for <strong>{dt(auditBooking.start)} UTC</strong>{auditBooking.meetingUrl && <> · <a href={auditBooking.meetingUrl} target="_blank" rel="noopener noreferrer">video link</a></>}</p>
+          </div>
+        )}
+        {lead.origin !== "audit_intake" && (
         <div className="card">
           <h3>Questionnaire</h3>
           <dl className="kv">
@@ -117,6 +149,8 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
               <dl className="kv small" style={{ marginTop: 8 }}>{Object.entries(legacy).map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>
             </details>
           )}
+        </div>
+        )}
         </div>
 
         <div className="stack">

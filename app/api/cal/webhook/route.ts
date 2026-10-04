@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { recordBooking, setStatus } from "@/lib/leads";
 import { recordStageBooking, cancelStageBooking } from "@/lib/programme";
+import { recordAuditBooking, cancelAuditBooking } from "@/lib/audit";
 import { calOrigin } from "@/lib/cal";
 import { safeEqual } from "@/lib/security";
 import { notifyAdmin } from "@/lib/messaging";
@@ -59,6 +60,29 @@ export async function POST(req: Request) {
       }, "cal");
     }
     return NextResponse.json({ ok: true, programme: true });
+  }
+
+  // Application Audit calls carry the lead token as auditLeadToken (never leadToken, which means the review).
+  const auditToken = (p.metadata?.auditLeadToken as string | undefined) ?? (p.responses?.auditLeadToken as string | undefined);
+  const auditLead = auditToken
+    ? await db.lead.findUnique({ where: { token: auditToken } })
+    : p.uid ? (await db.serviceBooking.findFirst({ where: { uid: p.uid, product: "audit" }, include: { lead: true } }))?.lead ?? null : null;
+  if (auditLead) {
+    if (body.triggerEvent === "BOOKING_CANCELLED") {
+      if (p.uid) await cancelAuditBooking(auditLead.id, p.uid);
+    } else if ((body.triggerEvent === "BOOKING_CREATED" || body.triggerEvent === "BOOKING_RESCHEDULED") && p.uid && p.startTime) {
+      await recordAuditBooking(auditLead, {
+        uid: p.uid,
+        start: new Date(p.startTime),
+        end: p.endTime ? new Date(p.endTime) : null,
+        timezone: p.attendees?.[0]?.timeZone ?? null,
+        meetingUrl: (p.metadata?.videoCallUrl as string | undefined) ?? p.videoCallData?.url ?? (p.location?.startsWith("http") ? p.location : null),
+        rescheduleUrl: `${calOrigin}/reschedule/${p.uid}`,
+        cancelUrl: `${calOrigin}/booking/${p.uid}?cancel=true`,
+      }, "cal");
+      if (!auditLead.auditPurchasedAt) await notifyAdmin(`Audit booked without payment: ${auditLead.name}`, ["Check whether they have paid."]);
+    }
+    return NextResponse.json({ ok: true, audit: true });
   }
 
   const token = (p.metadata?.leadToken as string | undefined) ?? (p.responses?.leadToken as string | undefined);

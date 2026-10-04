@@ -17,10 +17,11 @@ const roles = [
 ];
 
 const steps = [
-  { n: "01", t: "Check your profile", d: "Complete the free 3-minute assessment. No payment, no call." },
-  { n: "02", t: "Get your preliminary result", d: "We'll show you straight away whether your profile appears worth reviewing further." },
-  { n: "03", t: "Personal review", d: `Suitable candidates can book a ${formatGBP(products.review.pricePence)} Personal Eligibility Review and pick a time immediately.` },
-  { n: "04", t: "Build your strategy", d: "If you decide to proceed, move into an Evidence Audit or more comprehensive application support." },
+  
+  { n: "01", t: "See where you stand", d: "Take the free 3-minute assessment to see whether your experience could be a fit for the UK Global Talent route." },
+  { n: "02", t: "Understand your potential", d: "Get an instant preliminary result showing whether your profile has enough potential to justify a deeper review." },
+  { n: "03", t: "Get a personal eligibility assessment", d: `Promising candidates can book a ${formatGBP(products.review.pricePence)} review to understand which criteria you could target, where your strongest evidence lies, and what gaps could hold you back.` },
+  { n: "04", t: "Build a clear path to application", d: "If you decide to proceed, turn the assessment into an evidence strategy — identifying what to use, what to strengthen, and how to build your case before preparing the application." },
 ];
 
 const examples = [
@@ -66,10 +67,9 @@ export default function Home() {
               <h1 style={{ marginTop: 16 }}>
                 UK Global Talent Visa for <span className="hl">Tech Professionals</span>
               </h1>
-              <p className="sub">Find out whether your career evidence could support a Global Talent application — before spending months preparing one.</p>
+              <p className="sub">Turn your Global Talent potential into a clear application strategy.</p>
               <p className="lead">
-                Global Talent Lab helps software engineers, AI &amp; data professionals, technology leaders and digital-tech founders assess their profile, identify evidence
-                gaps and build a stronger application strategy.
+                Global Talent Lab helps software engineers, AI &amp; data professionals, technology leaders and digital-tech founders understand where they stand, identify the evidence they need, and build a stronger case for the UK Global Talent Visa.
               </p>
               <div className="btn-row" id="hero-cta" style={{ marginTop: 24 }}>
                 <Link href="/assessment" className="btn btn-primary btn-lg">{site.primaryCta}</Link>
@@ -84,8 +84,7 @@ export default function Home() {
               <div>
                 <p style={{ margin: "0 0 8px", color: "var(--ink)", fontWeight: 650 }}>Built by someone who has been through it.</p>
                 <p className="small" style={{ margin: 0 }}>
-                  Our founder was personally endorsed through the UK Global Talent route for digital technology and works as a data scientist in the UK. We help you see
-                  your profile the way an assessor might — honestly.
+                  Our founder was personally endorsed for the UK Global Talent Visa in digital technology and works as a Data Scientist in the UK. We help you turn your experience into a clear application strategy — what's strong, what's missing, and what to do nex
                 </p>
               </div>
             </aside>
@@ -110,7 +109,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="grid g2" style={{ marginTop: 28 }}>
+            {/* <div className="grid g2" style={{ marginTop: 28 }}>
               <div className="card">
                 <h3>A good fit if you…</h3>
                 <ul className="checks">
@@ -127,7 +126,7 @@ export default function Home() {
                   <li>are looking for guaranteed endorsement</li>
                 </ul>
               </div>
-            </div>
+            </div> */}
           </div>
         </section>
 
@@ -136,7 +135,7 @@ export default function Home() {
           <div className="container">
             <div className="section-head">
               <span className="eyebrow">How it works</span>
-              <h2>Start free. Only pay if a review makes sense.</h2>
+              <h2>Start free. Only pay when your profile is worth exploring further.</h2>
             </div>
             <div className="grid g4 steps">
               {steps.map((s) => (
@@ -176,9 +175,9 @@ export default function Home() {
                 Global Talent Lab focuses specifically on helping technology professionals understand, structure and present their evidence. It&apos;s evidence-first
                 coaching, not agent-style &ldquo;we&apos;ll handle everything&rdquo;.
               </p>
-              <p className="small" style={{ color: "#94a3b8" }}>
+              {/* <p className="small" style={{ color: "#94a3b8" }}>
                 My own endorsement doesn&apos;t mean anyone else will be endorsed — every case depends on the candidate&apos;s own evidence.
-              </p>
+              </p> */}
               <details className="proof">
                 <summary>See my endorsement confirmation (cropped)</summary>
                 <Image src="/img/endorsement.webp" alt="Cropped screenshot of the founder's Global Talent endorsement email" width={900} height={870} sizes="(min-width: 900px) 600px, 90vw" />
@@ -192,7 +191,7 @@ export default function Home() {
         </section>
 
         {/* 5 — Illustrative profiles */}
-        <section className="section" id="profiles">
+        {/* <section className="section" id="profiles">
           <div className="container">
             <div className="section-head">
               <span className="eyebrow">Recognise yourself?</span>
@@ -221,7 +220,7 @@ export default function Home() {
               <strong>These examples are illustrative only and do not represent eligibility decisions or guarantees.</strong>
             </p>
           </div>
-        </section>
+        </section> */}
 
         {/* 6 — Services */}
         <section className="section alt" id="services">
@@ -250,13 +249,13 @@ export default function Home() {
                 <Link href="/assessment" className="btn btn-dark">Start With Free Assessment</Link>
               </div>
               <div className="card price-card">
-                <span className="tier">3 · EVIDENCE AUDIT</span>
+                <span className="tier">3 · APPLICATION AUDIT</span>
                 <div className="price">{formatGBP(audit.pricePence)}</div>
                 <div className="dur">{audit.duration}</div>
                 <p className="small">{audit.summary}</p>
                 <ul>{audit.deliverables.map((d) => <li key={d}>{d}</li>)}</ul>
-                <div className="when">Usually recommended after your £49 review, if your profile is ready for it.</div>
-                <Link href="/assessment" className="btn btn-secondary">Start With Free Assessment</Link>
+                <div className="when">If you already completed work on application and need an expert to evaluate that before submitting.</div>
+                <Link href="/audit" className="btn btn-secondary">Get My Application Reviewed</Link>
               </div>
               <div className="card price-card">
                 <span className="tier">4 · APPLICATION STRATEGY &amp; SUPPORT</span>
@@ -264,7 +263,7 @@ export default function Home() {
                 <div className="dur">{strategy.duration}</div>
                 <p className="small">{strategy.summary}</p>
                 <ul>{strategy.deliverables.map((d) => <li key={d}>{d}</li>)}</ul>
-                <div className="when">For candidates we both agree are ready. You write and submit your own application; no outcome is guaranteed.</div>
+                <div className="when">Recommended to candidates who need help in building a clear path to application after the initial review call.</div>
                 <Link href="/assessment" className="btn btn-secondary">Start With Free Assessment</Link>
               </div>
             </div>
@@ -284,7 +283,7 @@ export default function Home() {
               Not every technology professional should apply immediately. If your current evidence is unlikely to support a strong case, we would rather explain the gaps
               than encourage you to spend significant time and money on an application prematurely.
             </p>
-            <div className="grid g3" style={{ textAlign: "left", margin: "28px 0" }}>
+            {/* <div className="grid g3" style={{ textAlign: "left", margin: "28px 0" }}>
               <div className="card">
                 <h3>Understated impact</h3>
                 <p className="small" style={{ margin: 0 }}>Real outcomes stay buried in job descriptions instead of measurable impact and leadership evidence.</p>
@@ -297,7 +296,7 @@ export default function Home() {
                 <h3>Poor timing</h3>
                 <p className="small" style={{ margin: 0 }}>Applying before the evidence is there — or waiting far longer than necessary when it already is.</p>
               </div>
-            </div>
+            </div> */}
             <Link href="/assessment" className="btn btn-primary btn-lg">{site.primaryCtaShort}</Link>
           </div>
         </section>

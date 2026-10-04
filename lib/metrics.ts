@@ -51,7 +51,7 @@ export async function funnel(range: Range, f: Filters = {}, groupByCampaign = fa
   const [leads, events, spend] = await Promise.all([
     db.lead.findMany({
       where: leadWhere,
-      select: { grade: true, utmSource: true, utmCampaign: true, reviewPaidAt: true, auditPurchasedAt: true, fullServicePurchasedAt: true, revenuePence: true, payments: { where: { status: "paid" }, select: { product: true } } },
+      select: { origin: true, grade: true, utmSource: true, utmCampaign: true, reviewPaidAt: true, auditPurchasedAt: true, fullServicePurchasedAt: true, revenuePence: true, payments: { where: { status: "paid" }, select: { product: true } } },
     }),
     db.event.findMany({ where: eventWhere, select: { name: true, visitorId: true, utmSource: true, utmCampaign: true } }),
     db.spend.findMany({
@@ -88,11 +88,14 @@ export async function funnel(range: Range, f: Filters = {}, groupByCampaign = fa
   for (const l of leads) {
     const r = rowFor(l.utmSource, l.utmCampaign);
     for (const t of [r, total]) {
-      t.assessments++;
-      if (l.grade === "A") t.a++;
-      else if (l.grade === "B") t.b++;
-      else t.c++;
-      if (l.grade === "A" || l.grade === "B") t.qualified++;
+      // Audit enquiries skip the eligibility questionnaire, so they aren't assessments or A/B/C leads.
+      if (l.origin !== "audit_intake") {
+        t.assessments++;
+        if (l.grade === "A") t.a++;
+        else if (l.grade === "B") t.b++;
+        else t.c++;
+        if (l.grade === "A" || l.grade === "B") t.qualified++;
+      }
       if (l.reviewPaidAt) t.reviews++;
       if (l.payments.some((p) => p.product === "audit")) t.audits++;
       if (l.payments.some((p) => p.product === "strategy") || l.fullServicePurchasedAt) t.full++;
